@@ -107,3 +107,9 @@ verilator/vram_bench/sdram_split.v
 verilator/mdc_bench/obj_*/
 sim*_speed/
 SingleStepTests/*/make*.log
+
+# AI agent instructions and settings (kept locally, not in the repo)
+CLAUDE.md
+AGENTS.md
+.claude/
+.codex/
