@@ -65,66 +65,56 @@ module emu
 	
 	`include "build_id.v"
 	localparam CONF_STR = {
-		// UART token: 57600/115200 for MidiLink+PPP, plus MIDI (31250) — the
-		// SCC reaches 31250 through its own WR11/TRxC path (rtl/scc.v), and
-		// the token is what makes Main offer the MIDI mode that gates the
-		// user-port MIDI-in merge below.
+		// UART token: 57600/115200 for MidiLink+PPP, plus MIDI (31250); the
+		// MIDI mode gates the user-port MIDI-in merge below.
 		"MacIIvi;UART57600:115200,MIDI;",
+		// Layout follows MacLC_MiSTer (computer-core OSD standard). Status
+		// bits are unchanged from the flat layout, so saved .CFG files apply.
+		// CD-ROM (SCSI ID 3): ISO/TOAST are raw 2048-byte images; CUE/BIN/CHD
+		// go through Main's translation layer.
+		"SC0,IMGVHDHDA,Pri. disk (ID 0);",
+		"SC1,IMGVHDHDA,Disk (ID 1);",
+		"SC4,ISOTO*CUEBINCHD,CD-ROM (ID 3);",
+		// One floppy, like the real IIvi. Keep index F1: the mount latches
+		// key on dio_menu==1.
+		"F1,DSKIMG,Floppy;",
 		"-;",
-		// One floppy only: the real Mac IIvi has a single internal SuperDrive
-		// and no external floppy port. The old "Sec Floppy" (F2, ioctl index 2)
-		// was dropped 2026-08-06 (owner call, fit headroom): the second drive
-		// still exists inside the family-shared swim.v but its insertDisk is
-		// tied off below, so it permanently reports "no disk" — exactly a real
-		// IIvi's empty second bay. Keep the F**1** index: the mount latches key
-		// on dio_menu==1 and Main packs the extension into the upper bits.
-		"F1,DSKIMG,Mount Floppy;",
+		"O1,Model,Mac IIvi (16 MHz),Performa 600 (32 MHz);",
+		// menumask bit 4 = SDRAM module >=64MB. 36/48MB stay inside chip 0;
+		// 68MB (chip 1) is hidden pending a hardware fix of that path.
+		"H4O234,Memory,8 MB,20 MB;",
+		"h4O234,Memory,8 MB,20 MB,36 MB,48 MB;",
 		"-;",
-		"SC0,IMGVHDHDA,Mount SCSI-0;",
-		"SC1,IMGVHDHDA,Mount SCSI-1;",
-		"SC2,NVR,Mount PRAM;",
-		// CD-ROM (SCSI ID 3). ISO/TOAST (TO* matches .toast) are raw 2048-byte
-		// images and work today; CUE/BIN/CHD are listed for the Main_MiSTer
-		// translation layer — a 2048-byte-sector .bin also works mounted directly.
-		"SC4,ISOTO*CUEBINCHD,Mount CD-ROM;",
-		"OI,CD-ROM Drive,Enabled,Disabled;",
+		"P1,Machine;",
+		"P2,Video;",
+		"P3,Audio;",
+		"P4,Advanced;",
 		"-;",
-		"O78,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
-		"OCD,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
-		"OA,Monitor,640x480 VGA,512x384 12in RGB;",
-		"-;",
-		// Machine (O1 = status[1], reset-latched like Memory): selects the
-		// box-ID longword ($5FFFFFFC = $A55A2016 IIvi / $A55A2015 IIvx — the
-		// Performa 600 is a rebadged IIvx and the invented $2017 ID was
-		// HW-falsified, see dataController) AND the CPU speed — the 32 MHz
-		// machine runs the kernel's off-bus beats on both phi edges ("32 MHz"
-		// core on the 16 MHz bus, the real IIvx/P600 shape; tg68k.v
-		// cpu_turbo). Takes effect at the next reset only (R0 below).
-		"O1,Machine,Mac IIvi (16MHz),Performa 600 (32MHz);",
-		// Memory: one line per SDRAM-module tier (O234 = status[4:2]), so only
-		// sizes the fitted module can back are offered. menumask bit 0 = module
-		// >=64MB (from hps_io sdram_sz; H hides when the bit is SET, h when CLEAR).
-		// 36MB tops out SDRAM word $157FFFF and 48MB word $1B7FFFF — both inside a
-		// 64MB module's (and a 128MB module's chip-0) $1FFFFFF limit, so both need
-		// only a >=64MB module. 48MB doubles as the chip-0-only probe that isolates
-		// the 68MB chip-1/nCS fault. 68MB (word $257FFFF, needs a 128MB module's
-		// SECOND chip) is HIDDEN pending a hardware fix of that path — the RTL
-		// still supports the size, it's just not OSD-reachable (and the clamp below
-		// caps any stale selection). With an unknown/32MB module only 8/20MB show.
-		"H0O234,Memory,8MB,20MB;",
-		"h0O234,Memory,8MB,20MB,36MB,48MB;",
-		"-;",
-		// MT32-pi (user port). Status bits 22-31 were entirely free here, so
-		// these use the SAME assignments as MacLC — and because MiSTer status
-		// bits are explicitly numbered in the string, adding this page does
-		// NOT shift any existing option or invalidate saved MacIIvi.cfg files.
-		"P1,MT32-pi;",
+		"h0-,Changes pending;",
+		"R0,Apply and reset;",
+
+		"P1R5,Interrupt (NMI);",
 		"P1-;",
-		"P1OO,Use MT32-pi,Yes,No;",
-		"P1OQ,Synth,Munt,FluidSynth;",
-		"P1ORS,Munt ROM,MT-32 v1,MT-32 v2,CM-32L;",
-		"P1OTV,SoundFont,0,1,2,3,4,5,6,7;",
-		"P1OMN,Show Info,No,Yes,LCD-On,LCD-Auto;",
+		"P1R6,Clear PRAM and reset;",
+
+		// Aspect ratio and scale only steer the scaler, so they act at once.
+		"P2OA,Monitor,640x480 VGA,512x384 12in;",
+		"P2O78,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
+		"P2OCD,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
+
+		"P3-,MT32-pi;",
+		"P3OO,Use MT32-pi,Yes,No;",
+		"H1P3OQ,Synthesizer,Munt,FluidSynth;",
+		"h1P3-;",
+		"H2P3ORS,Munt ROM,MT-32 v1,MT-32 v2,CM-32L;",
+		"H3P3OTV,SoundFont,0,1,2,3,4,5,6,7;",
+		"h1P3-;",
+		"H1P3OMN,Show info,No,Yes,LCD-On,LCD-Auto;",
+		"h1P3-;",
+
+		"P4SC2,NVR,PRAM image;",
+		"P4-;",
+		"P4OI,CD-ROM drive,Enabled,Disabled;",
 		"I,",
 		"MT32-pi: SoundFont #0,",
 		"MT32-pi: SoundFont #1,",
@@ -138,10 +128,6 @@ module emu
 		"MT32-pi: MT-32 v2,",
 		"MT32-pi: CM-32L,",
 		"MT32-pi: Unknown mode;",
-		"-;",
-		"R5,Interrupt (NMI / MacsBug);",
-		"R6,Reset PRAM & Core;",
-		"R0,Reset & Apply CPU+Memory;",
 		"V,v",`BUILD_DATE
 	};
 
@@ -176,17 +162,6 @@ module emu
 	reg rom_loaded = 1'b0;
 	always @(posedge clk_sys) if (dio_download && dio_index == 0) rom_loaded <= 1'b1;
 
-	reg [2:0] status_mem = 3'b000;       // latched memory selection (status[4:2])
-	// Machine select (O1, re-added 2026-08-15 for the P600 32MHz mode): latched
-	// at reset exactly like Memory — a live OSD change does nothing until the
-	// next reset ("takes effect between reboots"). Drives BOTH the box-ID
-	// ($A55A2016 IIvi / $A55A2015 IIvx-family P600) and tg68k's cpu_turbo (32 MHz core on
-	// the 16 MHz bus — phi grid, E/VIA pacing and every peripheral rate are
-	// untouched, matching the real P600's 32 MHz 68030 on the IIvi bus).
-	// History: the ORIGINAL O1 machine option was removed 2026-07-13 when P600
-	// mode had no CPU-speed effect; its old status[4] second bit is long since
-	// the Memory field's 3rd bit (O234) — O1 here is a single-bit option.
-	reg       status_machine = 1'b0;     // latched: 0 = IIvi 16MHz, 1 = P600 32MHz
 	localparam [1:0] status_cpu = 2'b10; // TG68K CPU type: 2'b10 = 68030
 	reg       n_reset = 0;
 	reg       pram_force_reset = 1'b0;  // "Reset PRAM & Core" -> system reset pulse
@@ -213,8 +188,6 @@ module emu
 			end
 			else if(rst_cnt) begin
 				rst_cnt     <= rst_cnt - 1'd1;
-				status_mem  <= status[4:2];
-				status_machine <= status[1];
 			end
 			else begin
 				n_reset <= 1;
@@ -243,10 +216,30 @@ module emu
 	// corrupts the machine mid-session).
 	wire [15:0] sdram_sz;
 	wire        sdram_64p = sdram_sz[15] && (sdram_sz[1:0] >= 2'd2);  // 64 or 128MB
-	// menumask bit 0 = "module >=64MB" gates the 8/20/36/48 vs 8/20 Memory lines.
-	// (128MB detection retired with the 68MB OSD entry — the offered sizes now top
-	// out at 48MB = chip-0-only; re-add sdram_128 when the chip-1/nCS path is fixed.)
-	wire [15:0] status_menumask = {15'd0, sdram_64p};
+
+	// Machine settings apply only while reset is asserted (OSD standard).
+	// Saved configs still apply on first load: the HPS delivers status while
+	// n_reset is held. Aspect ratio and scale stay live on status.
+	reg [31:0] cfg = 0;
+	always @(posedge clk_sys) if (~n_reset) cfg <= status;
+	// Settings that wait for reset: model (1), memory (4:2), monitor (10),
+	// CD-ROM drive (18) and the Audio page (31:26, 24:22).
+	localparam [31:0] CFG_MASK = 32'hFDC4041E;
+	wire osd_pending = |((status ^ cfg) & CFG_MASK);
+
+	// menumask: bit 0 = changes pending; bits 1-3 hide MT32-pi options that do
+	// not apply; bit 4 = module >=64MB gates the 8/20/36/48 vs 8/20 Memory
+	// lines. (128MB detection retired with the 68MB entry; re-add sdram_128
+	// when the chip-1/nCS path is fixed.)
+	wire [15:0] status_menumask = {11'd0, sdram_64p,
+	                               status[24] | ~status[26], status[24] | status[26],
+	                               status[24], osd_pending};
+
+	// Model drives both the box ID ($A55A2016 IIvi / $A55A2015 IIvx-family
+	// P600) and tg68k's cpu_turbo: a 32 MHz core on the 16 MHz bus, with phi,
+	// E/VIA pacing and every peripheral rate untouched, like the real P600.
+	wire [2:0] status_mem     = cfg[4:2];
+	wire       status_machine = cfg[1];     // 0 = IIvi 16MHz, 1 = P600 32MHz
 
 	// hps_io block-device buses (all VDNUM devices)
 	wire [31:0] sd_lba[VDNUM];
@@ -287,10 +280,10 @@ module emu
 	assign sd_buff_din[VD_CDROM] = cd_buff_din;
 	wire        cd_ack     = sd_ack[VD_CDROM];
 	wire        cd_mounted = img_mounted[VD_CDROM];
-	// OSD "CD-ROM Drive" option (OI / status[18], 0 = Enabled). Disabling makes
+	// OSD "CD-ROM drive" option (OI / cfg[18], 0 = Enabled). Disabling makes
 	// ID 3 vanish from the bus entirely — the pre-CD baseline, kept as a
 	// hardware A/B lever given the SCSI wedge history.
-	wire        cd_enable  = ~status[18];
+	wire        cd_enable  = ~cfg[18];
 
 	// BlueSCSI Toolbox dedicated slot (3): isolated block device driven by the
 	// primary SCSI target (ID 0) through dataController. There is deliberately
@@ -770,8 +763,8 @@ module emu
 	// Macintosh IIvi memory configuration — VASP model (docs/VASP_RETARGET.md):
 	// one CONTIGUOUS block at $0 (4MB motherboard + one SIMM bank), no V8-style
 	// config-register banking. The ROM sizes memory by probing; open-bus $FFFF
-	// above ram_size ends the probe. Menu configs (status[4:2], latched at
-	// reset into status_mem):
+	// above ram_size ends the probe. Menu configs (cfg[4:2], latched at reset
+	// as status_mem):
 	//   8MB  = 4 + 4x1MB SIMMs   (000, default)
 	//   20MB = 4 + 4x4MB SIMMs   (001)
 	//   36MB = 4 + 4x8MB SIMMs   (010) — RAM top = SDRAM word $157FFFF (chip 0)
@@ -852,17 +845,17 @@ module emu
 	// runs in the fixed 24.576 MHz CLK_AUDIO domain; the LCD-overlay raster
 	// tracker runs on the video clock we pass it (clk_sys = the mdc824 card's
 	// scanout domain) and its box is composited into VGA_R/G/B above.
-	// Mode/ROM/SoundFont come from the OSD "MT32-pi" page (CONF_STR P1,
-	// status[31:24]); "Show Info" (status[23:22]) selects the readout:
+	// Mode/ROM/SoundFont come from the OSD Audio page (cfg[31:24], applied
+	// at reset); "Show info" (cfg[23:22]) selects the readout:
 	// 1=Yes -> framework OSD info popup, 2/3=LCD-On/LCD-Auto -> LCD overlay.
 	// ------------------------------------------------------------------------
 	wire [15:0] mt32_i2s_l, mt32_i2s_r;
 	wire        mt32_available;
 	wire        mt32_midi_rx;
-	wire        mt32_disable = status[24];                 // "Use MT32-pi" = No
+	wire        mt32_disable = cfg[24];                    // "Use MT32-pi" = No
 	wire        mt32_mute    = mt32_available & mt32_disable;
 	wire        mt32_use     = mt32_available & ~mt32_disable;
-	wire  [1:0] mt32_info    = status[23:22];              // Show Info: No/Yes/LCD-On/LCD-Auto
+	wire  [1:0] mt32_info    = cfg[23:22];                 // Show Info: No/Yes/LCD-On/LCD-Auto
 	wire  [7:0] mt32_mode, mt32_rom, mt32_sf;
 	wire        mt32_newmode;
 	wire        mt32_lcd_en, mt32_lcd_pix, mt32_lcd_update;
@@ -881,9 +874,9 @@ module emu
 		.mt32_i2s_r(mt32_i2s_r),
 		.mt32_i2s_l(mt32_i2s_l),
 		.mt32_available(mt32_available),
-		.mt32_mode_req(status[26]),          // Synth: 0=Munt, 1=FluidSynth
-		.mt32_rom_req(status[28:27]),        // Munt ROM: MT-32 v1/v2/CM-32L
-		.mt32_sf_req({5'd0, status[31:29]}), // SoundFont 0-7
+		.mt32_mode_req(cfg[26]),             // Synth: 0=Munt, 1=FluidSynth
+		.mt32_rom_req(cfg[28:27]),           // Munt ROM: MT-32 v1/v2/CM-32L
+		.mt32_sf_req({5'd0, cfg[31:29]}),    // SoundFont 0-7
 		.mt32_mode(mt32_mode),
 		.mt32_rom(mt32_rom),
 		.mt32_sf(mt32_sf),
@@ -1681,7 +1674,7 @@ module emu
 		.ioctl_download(1'b0), .ioctl_index(8'd0),
 		.overlay_en(1'b0),
 		.monochrome(1'b0),
-		.monitor_512(status[10]),   // shares the OSD Monitor option
+		.monitor_512(cfg[10]),      // shares the OSD Monitor option
 		.ce_pixel(mdc_ce_pixel),
 		.dbg_video_en(), .dbg_vram_wr_cnt(), .dbg_vram_fetch_cnt(),
 		.dbg_irq_cnt(), .dbg_ack_cnt(), .dbg_vblank_enable()
